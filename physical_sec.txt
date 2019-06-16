@@ -1,0 +1,119 @@
+################################### threats ###################################
+
+################################### physical access ###################################
+
+physical access poses a threat because an attacker can press the power button 
+and boot into single user mode 
+
+# single user mode 
+    allows unrestricted access
+
+# guidelines 
+    keep your system out of reach from any potential attackers
+    lock server/computer rooms 
+    only allow access to authorized personnel only 
+    limit access to each server room individually 
+    escort any visitors
+    log all visits
+    
+############################ systems not uneder your control  ############################
+
+# data centers are like banks of data
+    possible targets for attackers 
+    needs processes and controls in place to protect your data 
+
+# data center access and controls 
+    security guards /gates /checkpoints
+    video survailance
+    alarm system
+    multifactor auth
+    access policies including revoking aceess
+    id badges 
+    background checks on employees
+
+# cloud
+    at some point the cloud is real equipment
+    physical security is still important
+    your data is still on their storage system
+        the provider has access to your virtual disk 
+        encrypt your data   
+################################### single user mode  ###################################
+
+# single user mode
+    single user mode did not traditionally require a root password
+    power resets
+
+    enter the bootloader
+        press e to edit the config
+    
+    find the line that starts with linux
+        this tells the bootloader where the kernal is 
+        add the s or 1 to change the option to single user mode
+        or you could use systemd.unit=<target>
+            targets could be
+                rescue.target 
+                rescue 
+    the press ctrl+x to boot 
+        you now are booted into root 
+
+# how to require a root password to boot into single user
+    # older redhat & centOS
+        first log in to root 
+        edit /etc/sysconfig/init
+            look for the line with sushell
+        change sbin/sushell to sbin/sulogin 
+        save changes 
+        reboot            
+
+# hot to require a root password for systemd
+    # new redhat, centos, ubuntu
+        log in to root 
+        cd lib/systemd/system
+        edit both emergency.service & rescue.service
+        in both files 
+        change ExecStart=-/bin/sh -c "/usr/sbin/sushell: 
+        to ExecStart=-/bin/sh -c "/usr/bin/sulogin:
+        save & reboot
+    # ubuntu 
+        the dedault setup doesnt set a root password
+        so even if sulogin fires you will just login 
+        you need to manually set a root pw using the passwd command 
+            passwd
+
+################################### boot loader ###################################
+    
+# RedHat CentOS
+    interupt boot loader 
+        e to edit kernal params
+            change init to init-=/bin/bash
+        instead of runnign the nomal init just the bash shell will be executed 
+# to protect the bootloader     
+    cd /etc/grub.d
+        nano 40_custom
+        add the following line 
+            set superusers="root"
+            password root root              - makes roots pw root
+
+        to encrypt the password use the following command 
+        # CentOS rel
+            grub2-mkpasswd-pbkdf2
+        # ubuntu
+            grub-mkpasswd-pbkdf2
+        enter your password and add the output of that command to the 40_custom
+        
+    # then rebuild the grub bootloader:
+        # CentOS rel
+        grub2-mkconfig -o /boot/grub2/gurb.cfg
+        # ubuntu 
+        update-grub
+    reboot system
+
+################################### booting from cd ###################################
+
+rescue option 
+mount the file systems
+edit out the pw from the grub.cfg file 
+
+# to avoid this encrypt your data
+
+################################### Encrypting Data ###################################

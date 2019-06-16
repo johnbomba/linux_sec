@@ -1,0 +1,45 @@
+############################ guidelines ############################
+Keep services on diff systems
+encrypt data transmission 
+    esp authntication 
+
+# use the following options for 
+    ftp             - sftp
+    telnet          - ssh
+    SNMP v1/v2      - SNMPv3
+    http            - https 
+
+# do not use shared accounts 
+
+# each application should have its own acct 
+
+# never log into root directly 
+    control and monitor access with sudo 
+    sudo creates a log 
+
+# maintian accounts
+    create and use a process for removing access
+
+# use multifactor authentication 
+    something you know + something you have or something you are 
+     or 
+    password + biometric 
+
+# principle of least privilege 
+    aka only use root when required 
+    avoid running serivices as root
+    use the most restrictive permissions to only allow people enough services to do thier job
+    # ex : a db does not need root priv 
+    
+# monitor system activity 
+    routinely review logs 
+    send logs to a remote logging system 
+
+# use firewall 
+    linux has a builtin firewall 
+        netfilters + iptables
+    only allow network connections from sources that require it 
+
+# encrypt your data 
+    Encryption protects yuor data while it is at rest 
+
