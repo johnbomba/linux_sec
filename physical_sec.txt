@@ -117,3 +117,126 @@ edit out the pw from the grub.cfg file
 # to avoid this encrypt your data
 
 ################################### Encrypting Data ###################################
+
+# encrypt data to protect against physical attacks 
+# the OS needs to be able to acces the data with a passphrase or keyfile
+    or use the key to unlock a master key 
+# the passphrase is the weak link 
+ 
+
+# dm-crypt 
+    dm-crypt                - device mapper crypt
+        Kernal level encryption system provides transparent disk encrption 
+        creates a new deive in /dev/mapper - any reads are decrypted any writes encrypted 
+        use like any other block device 
+
+# example 
+
+Files and Dirs                          /home                   
+filesystem                              EXT4                    
+virtual block device                    /dev/mapper/home        
+encryption/decryption                   dm-crypt                
+physical block device                   /dev/sda2               
+
+# LUKS
+    Linux Unified Key Setup 
+    front end for dm-crypt
+    multiple passphrase support
+    portable (migrate from one system to another 
+    great for removable media too 
+
+# encrypt during install 
+    pro - easy to do 
+    con - you give up some control 
+
+    # CentOS & RedHat
+        have a checkbox during install 
+        needs to provide and confirm a passphrase 
+
+    # ubuntu
+        select encrypt system option 
+        enter passphrase 
+
+    # for either distro you will need to enter the passphrase on boot 
+
+#################################### encrypt new device ####################################
+
+# setting up LUKS on a new device 
+    # use this process for any block device
+    # doing this will remove all data on that device (partition)
+    
+    # you can use something like shred to fill the disk with 
+        # random data before encrypting to conceal where your data is stored 
+    sudo shred -v -n 1 /dev/sbd
+        -v          -verbose
+        -n 1        - number of iterations
+        /dev/sdb    - path where new disk is located
+
+    sudo cyryptsetup luksFormat /dev/sdb
+    # will ask for passphrase
+    # warns will overwrite 
+    
+    sudo cryptsetup luksOpen <path> opt
+    # you now have a virtual block device in /dev/mapper
+    sudo mkfs -t ext4 /dev/mapper/opt           - creates a filesystem 
+    
+    sudo vi /etc/fstab
+    # create an entry in for /dev/mapper/opt /opt ext4 defaults 0 0
+
+    sudo mount /opt
+ 
+    # from this point on use the file system as normal allow luks and dmcrypt to handle the 
+    # encryption/decryption 
+    
+#### in order for the device to mount during boot 
+    sudo vi /etc/crypttab 
+    opt /dev/sdb none luks
+    |    |       |      |
+    |    |       |      |
+    |    |       |      +-- options column luks standard format
+    |    |       +--------- passphrase (specify none so it will ask on boot)
+    |    +----------------- underlying block device 
+    +---------------------- name that we used for teh virtual bock 
+        # you can also supply the UUID instead of the /dev/sdb 
+        # you can get that info by running blkid
+        # look for crypto_luks
+        # this is a better idea for removable devices 
+    
+#### to manually run this device instead of automatically mounting: 
+    sudo cryptsetup luksOpen /dev/sdb opt
+        enter passphrase
+    sudo mount /dev/mapper/opt /opt
+
+    # to unmount 
+    sudo unmount /opt
+    sudo cryptsetup luksCLose opt
+
+#### if you dont have block level access 
+    # for example some cloud providers 
+    in this case you use a file as the device you encrypt
+    sudo mkdir /data
+    sudo fallocate -l 100M /data/opt
+    sudo strings /data/opt
+    # strings should return nothing 
+
+    # if you want to be more secure write random data to the file 
+    sudo dd if=dev/urandom of=/data/opt bs=1M count=100
+        dd - command
+        if - input file 
+        of - output file 
+        bs - byte size (1 megabyte in this case 
+        count - count
+    # this might take some time 
+
+    sudo cryptsetup luksFormat /data/opt   
+        enter passphrase
+    sudo cryptsetup luksOpen /data/opt opt
+        enter passphrase
+    sudo mkfs -t ext4 /dev/mapper/opt
+    sudo mount /dev/mapper/opt
+    
+    sudo blkid 
+        # will show access through /dev/loop0 which allows files to be treated like a block device 
+
+################################## encrypt and existing device ##################################
+    
