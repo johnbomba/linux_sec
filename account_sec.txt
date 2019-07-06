@@ -173,11 +173,11 @@ ensure that the root account is the only acct with a UID of 0
 
 pam_securetty
     auth [user_unknown=ignore success=ok ignore=ignore defualt=bad] pam_securetty.so
-    /etc/securetty shows a list of devices where root is allowed to login
-        console                                                         - only allow root to login to the console
-        tty1                                                            - only allow root to login to the first virtual login
-        list anything else                                              
-        leave it blank                                                  - root can only log in using single user mode
+    /etc/securetty                                  - shows a list of devices where root is allowed to login
+        console                                     - only allow root to login to the console
+        tty1                                        - only allow root to login to the first virtual login
+        list anything else
+        leave it blank                              - root can only log in using single user mode
 
 Disable ssh root logins
     /etc/ssh/sshd_config
@@ -204,6 +204,10 @@ determin the UID
     id <account>
 delete their account and home dir
     userdel -r    
+find other files that belong to them on the system
+    find / -user UID
+    find / -nouser
+
 #############################################  #############################################
 #############################################  #############################################
 #############################################  #############################################
