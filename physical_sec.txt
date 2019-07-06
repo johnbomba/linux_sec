@@ -240,3 +240,20 @@ physical block device                   /dev/sda2
 
 ################################## encrypt and existing device ##################################
     
+you need to first back up the data on the drive 
+wipe the device
+set up the devie as if it was new
+restore the backup 
+
+
+################################## disable crtl alt del ##################################
+ctrl+alt+del normally initiates a reboot
+
+
+on systems with systemd:
+
+systemctl mask ctrl-alt-del.target          - this disables the pointer to the reboot target
+systemctl daemon-reload                     - this applies the changes with out needing to reboot the machine 
+
+if you are using an older system that uses init
+remove the ctrl-alt-del line from teh /etc/init

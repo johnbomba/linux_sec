@@ -1,0 +1,210 @@
+############################################# linus account security  #############################################
+it's easier to attack a system from the inside 
+priv escalation attacks 
+    keep unwanted users out 
+    secure accounts 
+
+############################################# PAM #############################################
+# Pluggable Authentication Modules 
+# centralized auth method used in linux
+
+# allows any authentication program to access pam to check the passwd and shadow files
+# login commands dont need to constantly be rewritten (only pam needs updates)
+location: 
+    /etc/pam.d
+    /etc/pam.d/login
+    /etc/pam.d/sshd
+
+format:
+module_interface control_flag module_name module_args
+
+# module interfaces         - all return boolian T/F results
+auth                        - authenticates users 
+account                     - verifies if access is permitted
+password                    - used to changes passwords 
+sessions                    - manages user sessions
+
+# control flags             - tells the system what to do with the above result 
+# simple control flags 
+required                    - module result must be successful to continue (user not notified untill all tests are done)
+requisite                   - lime required but no other modules are invoked (user notified on the first failed module)
+sufficient                  - authenticates user if no other required modules have failed otherwise ignored 
+optional                    - only used when no other modules reference the interface
+include                     - includes configurateion from another file
+
+# complex control flags     - man pam.d 
+complex control flag        - atrribute=value
+
+############################################# PAM config ex #############################################3
+#%PAM-1.0                                           - shebang
+auth        required    pam_securetty.so            - auth is the interface  required is the flag  pam_securetty is auth module
+auth        required    pam_unix.so nullok          - the 3 lines starting with auth are called a stack all 3 must suceed for 
+auth        required    pam_nologin.so              - authentication to be sucessful 
+account     required    pam_unix.so                 - checks account info ex.is the pw expired
+password    required    pam_pwquality.so retry=3    - runs if the account above calls it ex. tells the user to create a new pw and checks quality(is it in a dict)
+password    required    pam_unix.so shadow \        - \ line continueation - tells pam to use shadow password.  
+                            nulllok use_authtok     - nullok allows userd to change blank pw(instead of locking acct) use_auth allows use of another modules pw like pw_quality.so
+session     required    pam_unix.so                 - logs when a user logs into/outof session
+
+# pam Documentation
+
+configuration:
+    account required pam_nologin.so
+    session required pam_unix.so
+    # so - shared object
+
+getting help:
+    # man <module w/o the .so>
+    man pam_nologin
+    man pam_unix    
+
+############################################# password security #############################################
+linux account types: 
+    root                                    - can do ANYTHIN
+        UID 0                               - always 0 
+
+    system accounts
+        UID < 1000                          - by convention doesnt need to be <1000 only used to be < 500 
+        configured in /etc/login.defs       - change the configs here 
+        useradd -r <sysacct name>           - the -r creates a system account instead of a normal one 
+
+    normal accounts
+        UID >= 1000                         - linux doenst care if the UID is 999 or 1000 only cares about 0 this is for humans 
+        intended for human use              
+        
+Password Security:
+    enforce pw polices                      - enforce dont hope for strong passwords
+        Use pam_pwquality                   - use a quality checker. pam_pwquality is based on pam_cracklib
+            # config file:
+            /etc/security/pwquality.conf
+            # PAM usage:
+            password requisite pam_pwquality.so
+            # module attributes
+            man pam_pwquality
+
+    Use Shadow Passwords
+        #without shadow 
+        /etc/passwd                                         - histroical way of storing pws UNENCRYPTED
+            root:$6$L3ZSm1M1H5:0:0:root:/root:/bin/bash     - all users can see /etc/passwrd and can crack that hash before trying to login
+        #with shadow
+        /etc/passwd 
+            root:x:0:0:root:/root:/bin/bash                 - only shows an x for the pw
+        /etc/shadow
+            root:$6$L3ZSm1M1H5::0:99999:7:::                - shadow is only readable by root
+        to display aging info for an account
+            chage -l <account>                              - shows info on the account and pw
+            chage -M <int> <account>                        - change the max number of dasy a pw is valid
+            chage -M 30 john                                - forces john to change pw every 30 days
+            chage -E <YYYY-MM-DD> <account>                 - date the account will expire
+            chage -E -1 <account>                           - unlocks accound
+            chage -d <lastday>                              - set the last day the pw was changes - use it to force a user to changed their pw 
+
+        # to set defaults 
+        /etc/login.defs
+            PASS_MAX_DAYS   99999                           - max days til forced pw change
+            PASS_MIN_DAYS   0                               - min days btwn pw changes
+            PASS_MIN_LEN    5                               - min length of pw
+            PASS_WARN_AGE   7                               - number of days before expiration that warnings to change appear
+        # to prevent reuse of pws
+        PAM directive:
+        password required pam_pwhistory.so                  - default stores previous 10 pws
+        # rember=N                                          - add remember as an arg to pam_pwhistory co change defaults
+        
+
+    # if you find a system not using shadow
+    converti it with: 
+        pwconv                                              - converts to shadow - must be run as root 
+        pwunconv                                            - unconverts - must be run as root
+        
+############################################# controlling account access #############################################
+# locking accounts:
+    passwd -l <account>                             - locks account
+    passwd -u <account>                             - unlocks account
+
+# or nologin shell
+/etc/passwd
+    apache:x:48:48:Apache:/usr/share/httpd:/sbin/nologin 
+    www-data:x:33:33:www-data:/var/www:/usr/sbin/nologin
+
+chsh                                                - change shell command
+    chsh -s <shell> <account>
+    chsh -s /sbin/nologin john
+
+disable logins
+    pam_nologin module
+        looks for /etc/nologin or /var/nologin
+        displays contents of the nolong file 
+
+# Monitor authenticatioin logs 
+commands:
+    last                                    - display the contents of the /var/log/wtmp
+    lastb                                   - displays failed login attempts stored in the /var/log/btmp
+    lastlog                                 - shows the last time a user has logged in /var/log/lastog
+log locations:
+    # depends on syslog configs
+    /var/log/messages
+    /var/log/syslog
+    /var/log/secure
+    /var/log/auth.log
+
+############################################# intrusion prevention #############################################
+fail2ban
+    monitors log files 
+    block ips that repeatedly try and fail to login 
+    automatic unban after a certain time
+    not just for linux logins
+
+2 factor options
+    google authenticator PAM module
+    duoSecurity pam_duo module 
+    RSA securID pam module 
+    
+############################################# security by acct types #############################################
+Use a normal account for normal activites - not root
+
+never log in as root 
+
+use sudo as needed instead of root 
+
+dont use the same root pw on every system 
+
+ensure that the root account is the only acct with a UID of 0
+    awk -F: '($3 == "0") {print}' /etc/passwd
+
+pam_securetty
+    auth [user_unknown=ignore success=ok ignore=ignore defualt=bad] pam_securetty.so
+    /etc/securetty shows a list of devices where root is allowed to login
+        console                                                         - only allow root to login to the console
+        tty1                                                            - only allow root to login to the first virtual login
+        list anything else                                              
+        leave it blank                                                  - root can only log in using single user mode
+
+Disable ssh root logins
+    /etc/ssh/sshd_config
+    permitRootLogin no
+    systemctl reload shhd
+
+# system applications accounts
+Use one account per service
+    web service(httpd)          webservice account (apache)
+
+dont activate the account
+
+dont allow direct logins from the account
+    sshd_config: denyUsers account1 accountN
+
+use sudo for all access
+    sudo -u apache apachectl1 configttest
+
+# User Accounts
+one account per person nevere allow sharing of accounts 
+
+#Deleting accounts 
+determin the UID
+    id <account>
+delete their account and home dir
+    userdel -r    
+#############################################  #############################################
+#############################################  #############################################
+#############################################  #############################################
+#############################################  #############################################
