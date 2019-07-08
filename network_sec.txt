@@ -1,0 +1,291 @@
+######################### network security #########################
+# Network Services:
+    Daemons servers
+    listen on network ports
+    constanlty runnin in the background
+    output recorded to log files
+    designed to preform a single task 
+
+# Securing Network services
+    use a dedicated user for each service
+        take advantage of privilege separattion
+    ports below 1024 are privileged
+        use root to open them then drop privileges
+        configureation controlled bu each service
+    stop and uninstall unused services
+    avoid unsecure services 
+        use ssh instead of telnet, rlogin, rsh and ftp
+    stay up to date with patches 
+        install services provided by your distro - avoid manually doing it 
+    only listen on required interfaces and addresses  
+
+# examlpe
+    instead of allowing a db to open port 3306 on a webserver exposing that port to the internet.
+    open port 3306 on local host and to allow only the services that need to access the db to
+    access it. 
+
+######################### information leakage #########################
+
+# avoid revealig information where ever possible 
+    examples:
+    when a webserver reports it's name version and sometimes OS in an http header 
+
+    /etc/motd
+    /etc/issue
+    /etc/issue.net
+
+######################### displaying services #########################
+systemctl                   - displays all running services 
+
+systemctl stop <service>    - stops for now will resume on reboot
+systemctl disable <service> - disables even after reboot
+
+# list listening programs with netstat
+nestat -nutlp 
+    -n                      - numeric
+    -u                      - include udp
+    -t                      - include tcp 
+    -l                      - dispaly only listening sockets
+    -p                      - shows PID 
+
+# or you can use nmap 
+nmap localhost
+nmap <ip>   
+
+# or lsof
+lsof -i                     - may need sudo 
+
+# test specific ports 
+telnet:
+    telnet <hostname or address> <port>
+Netcat
+    nc <hostname or address> <port>
+
+# Xinetd controlled services 
+/etc/ninetd.d/<service>
+to disable service 
+    disable = yes           - add to service file
+to diable xinetd:
+    systemctl stop xinetd
+    systemctl disable xinetd
+
+
+######################### securing ssh #########################
+ssh = Secure SHell
+allows key basked authentication 
+
+# to ensure key based auth 
+/etc/ssh/ssh_config
+    pubkeyauthentication yes
+
+# to generate an ssh key 
+ssh-keygen                      - you can create a passphrase or just hit enter to bypass
+    creates
+        ~/.ssh/id_rsa           - private key 
+        ~/.ssh/id_rsa.pub       - public key 
+
+# to copy an ssh key
+ssh-copy-id <user>@<host>       - copies the ssh public key to the remote host computre
+
+~/.ssh/authorized_keys          - where the public key winds up after the above command 
+
+    # to remove a key 
+    edit ~/.ssh/authorized keys and remove the key
+
+# force key authentication 
+edit: 
+/etc/ssh/ssh_config:
+    PasswordAuthentication no
+
+# to disable root logins
+edit: 
+/etc/ssh/ssh_config:
+    PermitRootLogin no
+
+# to only allow root to login with a key 
+edit:
+/etc/ssh/ssh_config:
+    PermitRootLogin without-password
+
+# to only allow certain users/groups ssh access
+edit: 
+/etc/ssh/ssh_config:
+    AllowUsers <user1> <user2> <userN>
+    AllowGroups <group1> <group2> <groupN>
+
+# or deny certain users/groups
+edit:
+/etc/ssh/ssh_config:
+    DenyUsers <user1> <user2> <userN>
+    DenyGroups <group1> <group2> <groupN>
+
+######################### ssh port forwarding #########################
+# security risk                             - with out a local firewall anyone can use the port forwarding once its set up
+ssh -L 3306:127.0.0.1:3306 server1          - allows encrypted traffic via ssh to access local host port 3306 (mysql) 
+ssh -L 8080:google.com:80 server1           - forwards all traffic to google.com port 80. google only sees traffic from server1
+
+ssh -D 8080 server1                         - enable dynamic port forwarding 
+
+# reverse port forwarding 
+ssh -R 2222:127.0.0.1:22                    - creates a reverse shell 
+
+# disable port forwarding  
+edit:
+/etc/ssh/ssh_config:
+    AllowTcpForwarding no                   - prevents any port forwarding
+    GatewayPorts no                         - controlls wether remote hosts can connect to ports forwarded for the client 
+    
+######################### Use sshv2 instead of sshv1 #########################.
+#to use protocall2
+edit:
+/etc/ssh/ssh_config:
+    Protocol 2
+    
+# bind ssh to a specific address
+edit:
+/etc/ssh/ssh_config:
+    ListenAddress host_or_address1          - specify ip to listen on 
+    ListenAddress host_or_addressN          - you can use multiple listen lines 
+
+# change the default port 
+by default ssh uses port 22
+edit:
+/etc/ssh/ssh_config:
+    port <number>                           - might reduce random connection attempts to ssh but if someone is specifically 
+                                            targeting your system the new port will show up in a port scan 
+
+# add a new port using SElinux
+seamanage port -a -t ssh_port_t -p tcp <port>
+
+semanage port -l | grep ssh                 - to check it worked
+
+# disable the banner
+avoid information leakage
+edit:
+/etc/ssh/ssh_config:    
+    Banner none
+banner location:
+    /etc/issue.net
+
+# after any changes:
+systemctl reload sshd
+
+
+    
+######################### linux firewall #########################
+firewalls controll network access
+linux firewall = netfilter + iptables
+netfilter is a kernal framework
+iptables is a packet selection system
+Use iptables command to control the firewall
+
+# structure 
+Table                       - tables contain chains 
+    chain1                  - chains contain rules 
+        rules
+            rule1
+            rule2
+    chain2                  - tables can contain multiple chains 
+        rules               - each chain has its own set of rules 
+            rule1
+            rule2
+# default tables            - you can not create your own tables
+filter                      - most commonly used table. block incoming or outgoing connections
+NAT                         - Network Address Translation. remaps one ip space to another
+Mangle                      - alters packets. ex. change the ttl 
+Raw                         - allow exemptions from connection tracking 
+Security                    - used by SELinux. mandatory access control 
+
+# default chains             - chains are case sensative use all uppper
+# you can create your own chains
+INPUT                       - 
+OUTPUT                      - 
+FORWARD                     - 
+PREROUTING                  - 
+POSTROUTING                 - 
+
+# how tables and chains work:
+            INPUT       OUTPUT    FORWARD PREROUTING  POSTROUTING
+FIlter        X           X          X        -           -         
+NAT           X           X          -        X           X
+Mangle        X           X          X        X           X
+Raw           -           X          -        X           -
+Security      X           X          X        -           -
+
+#detailed structure
+Table: filter                   Table: NAT
+    chain: INPUT                    chain: PREROUTING
+        rules                           rules
+    chain: FORWARD                  chain: INPUT
+        rules                           rules
+    chain: OUTPUT                   chain: OUTPUT
+        rules                           rules
+                                    chain: POSTROUTING
+                                        rules
+                                        
+# examples 
+incoming packet
+    network ----> PREROUTING ----> INPUT ----> local system
+
+inbound packet destined for another host
+    network --> PREROUTING --> FORWARD --> POSTROUTING --> network
+
+packet that originates from teh system
+    local system --> OUTPUT --> POSTROUTING --> network
+
+# creating rules
+rules - Match + target
+Match by:
+    protocaol
+    source/dest IP or network
+    source/dest ip or port
+    network interface
+example:
+    protocol:TCP, source IP:1.2.3.4, dest port:80
+targets:
+    chain
+    built-in targets:
+        ACCEPT              - accepts and stops proccessing rules int he chain
+        DROP                - silently ignores the packet and stops proccessing rules in the chain
+        REJECT              - like drop but will notify sender it was not accepted
+        LOG                 - logs packet and cont proccessing rules in teh chain
+        RETURN              - causes the current packet to stop traveling through the current chain
+            # if this happens in a sub chain the packet will return to the calling chain 
+            # if this happens in a main chain the defaul poilicy of the chain will be applied 
+            
+
+######################### implementing a firewall #########################
+# from the command line: 
+iptables                - for ip v4
+ip6tables               - for ip v6
+
+# list/veiw
+iptables
+    -L                  - display the filter table
+    -t <table name>
+    -t nat -L           - display the NAT table
+    -nL                 - display using numeric output. no dns only ips
+    -vL                 - verbose output
+    --line-numbers -L   - use line numbers
+
+######################### chain policy / default target #########################
+# to set the default target for chain 
+iptables -P <chain> <target>
+    ex: iptables -P INPUT DROP
+
+# append insert and delete rules 
+iptables 
+    -A <chain> <rule-specification>             - appends rule to the end of the chain
+    -I <chain> [RULENUM] <rule specification>   - insert a rule into the chain if no rule num is supplied it will be inserted in the first position
+    -D <chain> <rule specificaion>              - delete by rule spec
+    -D <chain> <rulenum>                        - delete bu rule num
+    -F <chain>                                  - flush (delete) all rules 
+    # you can use -t <table> with all of the above
+    
+
+
+#########################  #########################
+#########################  #########################
+#########################  #########################
+#########################  #########################
+
