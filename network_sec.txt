@@ -273,6 +273,11 @@ iptables
 iptables -P <chain> <target>
     ex: iptables -P INPUT DROP
 
+# create or delete chains    
+iptables
+    -N <chain>                                  - create a new chain 
+    -X <chain>                                  - delete an existing chain 
+
 # append insert and delete rules 
 iptables 
     -A <chain> <rule-specification>             - appends rule to the end of the chain
@@ -281,11 +286,112 @@ iptables
     -D <chain> <rulenum>                        - delete bu rule num
     -F <chain>                                  - flush (delete) all rules 
     # you can use -t <table> with all of the above
-    
+
+# saving rules
+#debian/ubuntu
+apt get install iptables-persistent
+netfilter-persistent save
+
+#centOS/RedHat
+yum install iptables-services
+service iptables save 
+
+######################### firewall rule examples #########################
+# block ssh from ips other than your corp network 
+iptables -A INPUT -s 10.0.0.0/24 -p tcp --dport 22 -j ACCEPT                allows port 22 access from the 10.0.0.0/24 ips -then- 
+iptables -A INPUT -p tcp --dport 22 -j DROP                                 blocks any other ips that dont meet the above
+# only one rule is read at a time. top to bottom 
+
+######################### front ends #########################
+all use iptables on the back-end 
+firewalld - CentOS/RHEL
+system-configure-firewall - CentOS/RedHat
+
+UFW (Uncomplicated FireWall - ubuntu
+GUFW - graphical interface to UFW
+
+######################### tcp wrappers #########################
+only controll connection access to servces are wrapped 
+
+ldd         - prints req libraries 
+
+#ex:
+
+ldd /usr/bin/sbin/sshd | grep libwrap 
+    returns:
+libwrap.so.0 => /lib64/libwrap.so.0(0x00007f10219f8000)
+
+can control access by IP address/networks       - like a firewall 
+can control access by hostname                  - unline a firewall 
+transparent to client and service               
 
 
-#########################  #########################
-#########################  #########################
-#########################  #########################
-#########################  #########################
+# popular tcp wrapper
+Xinetd
+    cenralized management for multiple metwork services 
+    runtime configuration - changes take place immediately no need to restart/reload
+
+# configure tcp wrappers
+#host acces files
+/etc/hosts.allow    - checked first if a match is found access is granted
+/etc/hosts.deny     - checked next if a match is found access is denied and logged
+
+if there is not matches found is allow or deny access is granted 
+
+#rules
+formatted the same for allow and deny
+one rule per line 
+format: 
+    SERVICE(S) : CLIENT(S) [: ACTION(S)]
+    <service(s) : <client(s) [:<action(s)]
+ex:
+    sshd : 10.11.12.13              
+    sshd, imapd : 10.11.12.13               - multiple services can be seperated by a comma
+    ALL : 10.11.12.13                       - ALL is a wildcard 
+
+    sshd : 10.11.12.13, 1.2.3.4             - multiple clients can be seperated by a comma too 
+    sshd : jumpbox.example.com              - hostnames are good too here anything from jumbox.example.com will return true
+    sshd : .example.com                     - here anything from .example.com will return true 
+                                              for example admin.example.com or webdev.example.com will return true
+    sshd : jumpbox*.example.com             - will allow things like jumpbox4admins.example.com to return true 
+    sshd : jumpbox0?.example.com            - ? wildecard jumpbox03.example.com 
+
+    sshd : 10.11.12.                        - allows any ips that start with 10.11.12.
+    sshd : 10.                              - allows any ips that start with 10.
+    sshd : 10.11.0.0/255.255.0.0            - allows any ips that meet the ip and netmask pair 
+    sshd : /etc/hosts.sshd                  - will match any hosts listen in teh /etc/hosts.sshd file 
+    imapd : ALL                             - allows imapd to  accept all
+    impad : ALL EXCEPT .hackers.net         - allows imapd to accept all except for anyone connecting from any .hackers.net 
+    sshd : 10.11.12.13 : severity emerg     - generates an emergency msg if there is a connection from 10.11.12.13
+    sshd : 10.11.12.13 : severity local0.alert  - follows the rules in local0.alert for logs 
+    sshd : .hackers.net : spawn \
+    /usr/bin/wall "attack in progress"      - executes the wall command when someone trys to ssh into the system from .hackers.net
+    /usr/bin/wall "attack from %a"          - shows the clients ip address
+        #expansions:
+        %a (%A)                             - the clinet (server) host address
+        %c                                  - client information
+        %d                                  - the daemon process
+        %h (%H)                             - the client (server) host name or address
+        %n (%N)                             - the client host name 
+        %p                                  - the daemon PID
+        %s                                  - server information
+        %u                                  - client user name (or "unknown")
+        %%                                  - expands to a single '%' character
+        
+# through set up to deny all except: 
+
+# /etc/hosts.deny
+ALL : ALL 
+
+# /etc/hosts.allow
+#explicetly list allowed connections here:
+sshd : 10.11.12.13
+  
+
+#ex of how this works:
+incoming request -> firewall -> tcp wrappers +-> tcp wrapped service
+                        |            |       |
+                        |            |       +-> xinetd -> xinetd controlled service
+rejected request <------+ <----------+ <------------|          
+
 
