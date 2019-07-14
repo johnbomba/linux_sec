@@ -1,0 +1,380 @@
+########################## file and dir permissions ##########################
+if you cant access a file you should eb able to check the permissions on the dir 
+and work your way to the root if it still doesnt work 
+
+#file creation mask 
+if no mask is set permissions would be :
+    777 for directories 
+    666 for files 
+
+umask [-S] [mode]   - sets the file creation mask to mod if given
+    -S              - for symbolic notation     
+
+#to figure out the modified permissions for a file or dir subtrace teh umask mode from the chmod octle
+
+                    directory           file 
+base permission         777             666
+subtract umask         -022            -022
+creations permission    755             644
+
+using 002 is ideal for members of a group
+
+you cant subtract more than already exists it bottoms out at 0
+base permission         777             666
+subtract umask         -007            -007
+creations permission    770             660
+
+# common umask modes
+022
+002
+077
+007
+
+# umask permutations: 
+ocatal  binary  dir perms   file perms
+0       0           rwx         rw-
+1       1           rw-         rw-
+2       10          r-x         r--
+3       11          r--         r--
+4       100         -wx         -w-
+5       101         -w-         -w-
+6       110         --x         ---
+7       111         ---         ---
+
+# special modes 
+if you run umask with out any modes it will return 4 characters not 4 
+ex: 
+umask 0022 is the same as umask 022
+
+chmod 0644 is the same as chmod 644
+the first 0 is the special mode. special modes are: 
+    - setuid 
+    - setgid 
+    - sticky bit
+
+
+
+########################## special modes ##########################
+when a process is started it runs using the starting user UID
+setuid - forces the process to start with the owners UID not the person who started the process 
+    #ex: 
+    ls -la
+    -rwsr-x-r-x 1 root root /usr/bin/passwd         - the owner is root and will always run as root hence the 's' in the x feild
+    - ping                                          - is another example - needs to run as root to access networking 
+    - chsh                                          - needs to run as root to change shell 
+
+setuid files ar an attack surface
+setuid is normally not honored on shell scripts only binarys
+
+# octal permissions
+setuid      setgid      sticky
+    0           0           0       value for off
+    1           1           1       value for on
+    4           2           1       base10 value for on (add them together)
+
+#to add the setuid attribute
+chmod u+s <filepath>
+chmod 4755 <filepath>               turn on setuid + 755 chmod permissons
+
+#to remove 
+chmod u-s <filepath>
+chmod 0755 <filepath>       
+
+# finding setuid files 
+find / -perm /4000
+
+    older style: 
+find / -perm +4000
+
+# you can use ls too 
+find / -perm /4000 -ls 
+
+# only the owner should edit setuid files 
+            symbolic        octal
+good        -rwsr-xr-x      4755
+
+bad         -rwsrwxr-x      4775
+
+really bad  -rwsrwxrwx      4777
+
+# setgid
+runs as the owners group not the user
+s will appear where the group x should appear  
+
+#finding
+find / -perm /2000 
+find / -perm +2000
+
+find / -perm /2000 -ls
+find / -perm +2000 -ls 
+
+chmod g+s <file path>
+chmod 2755 <filepath>
+
+# setgid on a dir 
+setgid on a dir causes new files to inherit the group of the dir 
+setgid causes all dir to inherit the setgid bit
+great for working with groups 
+not retroactive - will not change existing files 
+
+
+# to set multiple 
+chmod ug+s <file path>
+chmod 6755 <file path>          - 4 (from uid) + 2 (gid) = 6 
+
+# the sticky bit
+only allows root, the files owner or the dir owner to delete or rename the file
+used on /tmp
+
+shows up as a t in the other section of chmod
+    drwxrwxrwt  18 root root 12288 Jul 13 10:37 tmp
+
+# to set 
+chmod o+t <file path>
+chmod 1777 <file path>      - only really needs to be used in the case of 777 permissions
+
+# to remove 
+chomd o-t <file path>
+chmod 0777 <path>
+
+# reading ls output 
+- a capital special permission measn the underlying normal permission is not set
+- a lowercase spacial permission means the underlyng normal permission is set
+- these permissions done make sense 
+    #ex
+    $ ls -l 
+    -rw-r--r-- 1 john john 0 Jul 13 10:51 test
+
+    $ chmod 4644 test 
+
+    $ ls -l 
+    -rwSr--r-- 1 john john 0 Jul 13 10:51 test
+
+    $ chmod 4744 test
+
+    $ ls -l
+    -rwsr--r-- 1 john john 0 Jul 13 10:51 test
+    
+
+########################## Integrity Checker ##########################  
+Use the find command to check for files that have setuid and/or setgid modified
+
+Other options to find 
+    tripwire
+    AIDE        - advanced intrusion detecton environment
+    OSSEC
+    Samhain
+    package managers
+    
+########################## file attribuets ##########################
+# file attributes sometimes called xattr
+    - ext2, ext3, ext4
+    - XFS
+    - Btrfs, ReiserFS, JFS
+    - OCFS2, OrangeFS, Lustre
+    - SquashFS, F2FS
+# attributes used most often 
+    #The "i" attribute            - immutable
+        the file cant be:
+        modified 
+        deleted                 - even root can not delete an immutable file
+        renamed 
+        hard linked to 
+        #unset the attribute in order to delete it     
+
+    #the "a" atribute               - append
+        the file is:
+        append only 
+        existing contents can't be modified 
+        can' be deleted             - unless the attr is removed 
+        used for log files          - to safeguard the audit trail
+    #other attributes
+        not every attributes is supported
+        man ext2                    - use the file system man file 
+        example: s                  - secure deletion should overwrite blocks with 0s but doesnt work on all file systems
+
+
+# to view file attributes 
+    lsattr <file path>
+    --------------e--- ./linux-security-course-downloads    dashes are not set
+    # to look up what the letters mean man chattr
+    
+# modifying attributes 
+    chattr <file path> [=+-] <modifier>
+        + <attr>                - add attributes
+        - <attr>                - remove attribute
+        = <attr>                - explicetly sets the attr to only what you enter. will clear existing 
+        =                       - with no attr input = will clear all attr
+    ex:
+    chattr /logfiles/weblog =a  - changes the file to append only
+
+########################## ACLs ##########################
+Access Control List
+    procvides additional control 
+        ex give one user access to a file without adding to a group or changing other permissions
+        traditional solution is to create a new group
+            increase management overhead of groups 
+                group1 : john, paul 
+                group2 : john, paul, mary 
+    in order to use ACL the file system has to be mounted with ACL support 
+        mount -o acl <path to dev> <path to mount>
+        tune2fs -o acl <path to dev>
+    check:
+        tune2fs -l <path do dev> | grep options 
+
+    # ACL type 1
+    access ACL 
+        controll access to a specific file or dir 
+
+    # ACL type 2 
+    Default ACL 
+        used for dir only 
+        used oni files in teh dir that dont have access acls of thier own 
+        not retroactive - existing files and dirs must be done manually 
+        optionallyi 
+
+    # ACLs can be configured 
+        per user
+        per group
+        for users not in the files group
+        via the effective rights mask 
+
+    # Creating access ACLs
+    setfacl                     - command 
+        #may need to install the ACL tools 
+    serfact -m <ACL> <file or dir>
+        #user
+        u:<uid>:<perms>                     - format for user 
+        #ex:
+            setfacl -m u:john:rwx test.sh   - allows john to wrx test.sh
+            setfacl -m u:sam:xr test.sh     - allows sam to rx test.sh no need for - in place of write or even the correct order
+
+        #group
+        g:<groupname>:<perms>               - format for a group 
+            setfacl -m g:sales:rw sales.txt - grants rw permissions to the sales grops
+
+        #mask
+        m:<perms>                           - set the effective rights mask. restricts permissions for all users in groups defined in the ACL
+            setfacl -m m:rx sales.txt       - prevents all users from writing 
+            #sometimes automatically calculated when chmod is run or on creation due to the umask 
+
+        #others
+        o:<perms> <file path>               - set format for others 
+            setfacl -m o:r test.sh          - set permission for users not in the creators group
+
+    # create multiple ACLs at onc e
+        #ex:
+            setfacl -m u:bob:r, g:sales:rw sales.txt    -separate rules by a comma
+
+    # Create default ACLs
+    setfacl
+        setfacl d:[ugo]:<perms> <file>
+        #ex:
+            setfacl -m d:g:sales:rw sale    - the d: sets the rest of the rule as the default the rules will affact all newly created files or dirs
+
+            setfacl d:g:project:rw .        - sets the default settings for the current dir (.)  to allow project group members to read and write 
+ 
+ 
+    # modifying existing ACLs
+    setfacl -R -m g:sales:rw sales          - recursivly modifies all files in a dir
+
+    # removing ACLs
+    setfacl -x <acl> <file or dir>          - deletes a single rule (leave outthe permission section
+        #ex
+            setfacl -x u:john sales.txt 
+            setfacl -x g:sales sales.txt
+
+    setfacl -b <file or dir>                - removes all rules 
+            setfacl -b sales.txt            - no need for info other than the filename or dir 
+    # view ACLs 
+    getfacl <file name or dir>
+
+    # detecting files with ACLs
+    ls -l 
+    -rw-rw-r--+ 1 root root 0 Feb 11 10:00 example.txt
+        # run getfacl to get the exact permissions for that file
+ 
+        
+########################## rootkits ##########################
+software used to gain root access and remain undetected 
+they attempt to hide from from sys admins and antivirus software
+
+# User space
+    user space rootkits try to replace common commands
+        ls, ps, find, netstat, etc
+
+    use an antivirus or file integrity cheker to detect 
+        AIDE
+        Tripwire
+        OSSEC
+    identify inconsistent system behaviour such as 
+        high CPU utilization without corresponding processes
+        high network load or unusual connections
+        
+# Kernal space  - harder to detect
+    try to replace parts of teh core OS
+        loadable kernal modules (LKM)
+        /dev/kmem                               - device that points to the kernals memory 
+        /dev/mem                                - points to an image of the physical memmory
+    
+    #kernal mode rootkits have to be running to hide themselves
+    to detect halt the system and examine storage
+        use a known good OS to do the checking 
+        use bootable media 
+
+# chkrootkit  
+    www.chkrootkit.org
+    shellscript that 
+        searches for rootkits
+        checks for promiscous mode 
+        checks for missing lastlog and utmp entires 
+        looks for LKM trojans 
+    run interactively or schedule execution via cron
+
+# RKHunter
+    rkunter.sourceforge.net
+    apt install rkhunter            - works for ubuntu
+    shell script that searches for rootkits
+
+    after install run
+        rkhunter --update           - updates teh rules used to check 
+        rkhunter -- propupd         - checks properties against commands a previously known good state 
+                                    when you run this you;re telling rkhunter to trust the current state of your machine
+        rkhunter -c                 - runs a check 
+        cat /var/log/rkhunter.log   - to consult the log file 
+        rkhunter -c --rwo           - runs with out prompts (rwo - report warnings only)
+        rkhunter --cronjob          - schdule a job
+    /etc/rkhunter.conf              - location of the config file. add you email to it to get email notifications of warnings 
+        MAIL-ON-WARNING=<email>
+        edit to add exceptions
+    
+# OSSEC 
+    ossec.github.io
+    host intrusion detection system (HIDS)
+    more than just rootkit detection
+        log analysis
+        file integrity cheking
+        alterting
+        
+    syscheck module 
+        user mode rootkit detection
+    rootcheck module 
+        both user and kernal mode rootkit detection 
+        searches for file names known 
+        signature based rootkit detection
+        queries the os and looks for inconsistent results 
+            #ex 
+                compares netstat with bind results
+            
+# rootkit removal
+    make a copy of the data if possible 
+    learn how to keep it from happening again 
+    reinstall core OS components and start investigating 
+        easy to miss something - not reccomended 
+    safest to resinstall the OS from a trusted source 
+
+# preventing rootkits 
+use good security pracitces 
+physical 
+account 
+network 
